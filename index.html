@@ -24,7 +24,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { Sparkles, Search, Filter, X, Settings, Columns3, Send, Pin, PinOff, Trash2, Undo2, LayoutGrid, FileText, ChevronDown, ChevronLeft, ChevronRight, Plus, MessageSquare, Maximize2, Share2, Link2, Printer, FileSpreadsheet, FileCode } from "lucide-react";
+import { Sparkles, Search, Filter, X, Settings, Columns3, Send, Pin, PinOff, Trash2, Undo2, LayoutGrid, FileText, ChevronDown, ChevronLeft, ChevronRight, Plus, MessageSquare, Maximize2, Share2, Link2, Printer, FileSpreadsheet, FileCode, Type, Calendar, Link, List, Hash, File, GripVertical } from "lucide-react";
 
 const ROWS = [
   { id: 1, file: "DF1.pdf", name: "Rafael Cano", company: "Farmacias YZA", fecha: "28/12/25 – 19:00", email: "rafael@farmaciasyza.com", truck: "Camion Pesado", from: "1040 Grayson Hwy, Lawrenceville GA", monto: 48500, status: "Sent Mail", trust: 90, created: "Today, 09:24 am" },
@@ -57,6 +57,8 @@ const COLS = [
   { key: "trust", label: "Trust", type: "num" },
   { key: "created", label: "Created at", type: "date" },
 ];
+
+const HEAD_ICON = { file: File, text: Type, date: Calendar, email: Link, select: List, num: Hash };
 
 const EXPORT_COLS = [["#", "id"], ["File Received", "file"], ["Name", "name"], ["Company", "company"], ["Fecha", "fecha"], ["Email", "email"], ["Tipo de Camion", "truck"], ["From", "from"], ["Monto", "monto"], ["Status", "status"], ["Trust", "trust"], ["Created at", "created"]];
 const XML_TAGS = { id: "id", file: "file", name: "name", company: "company", fecha: "fecha", email: "email", truck: "truck", from: "from", monto: "monto", status: "status", trust: "trust", created: "created" };
@@ -179,6 +181,7 @@ function App() {
   const [search, setSearch] = useState("");
   const [outputs, setOutputs] = useState([]);
   const [highlightId, setHighlightId] = useState(null);
+  const [dragId, setDragId] = useState(null);
   const [msgs, setMsgs] = useState([{ role: "assistant", text: "Hi! I can act on the 8 rows in \u201cQuotes\u201d. Ask me to filter, summarize or visualize \u2014 the result lands right here in the table. I only reference it here." }]);
   const [input, setInput] = useState("");
   const [open, setOpen] = useState(false);
@@ -230,6 +233,9 @@ function App() {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     highlight(id);
   }
+  function reorder(from, to) {
+    setOutputs((prev) => { const a = [...prev]; const i = a.findIndex((o) => o.id === from); const j = a.findIndex((o) => o.id === to); if (i < 0 || j < 0 || i === j) return prev; const [m] = a.splice(i, 1); a.splice(j, 0, m); return a; });
+  }
 
   function openMenu(out, rect) { setXmenu({ out, x: rect.right, y: rect.bottom }); }
   function shareOut() {
@@ -237,6 +243,14 @@ function App() {
     const link = "https://silia.app/quotes/o/" + out.id.replace(/[^a-z0-9]/gi, "").slice(-8);
     try { navigator.clipboard.writeText(link); } catch (e) {}
     showToast("Link copied \u2014 it opens this output with the conversation that built it.");
+  }
+  function sharePinned() {
+    try { navigator.clipboard.writeText("https://silia.app/quotes/pinned"); } catch (e) {}
+    showToast("Pinned set link copied \u2014 " + pinnedTop.length + " output" + (pinnedTop.length === 1 ? "" : "s") + ", with their conversation.");
+  }
+  function shareDashboard() {
+    try { navigator.clipboard.writeText("https://silia.app/quotes/dashboard"); } catch (e) {}
+    showToast("Dashboard link copied \u2014 " + outputs.length + " output" + (outputs.length === 1 ? "" : "s") + ", interactive and with context.");
   }
   function exportOut(fmt) {
     const out = xmenu.out; setXmenu(null);
@@ -346,7 +360,10 @@ function App() {
 
             {pinnedTop.length > 0 && (
               <div className="mb-3 rounded-xl border border-purple-200 bg-purple-50 p-3">
-                <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold" style={{ color: PURPLE }}><Pin size={13} /> Pinned</div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: PURPLE }}><Pin size={13} /> Pinned</div>
+                  <button onClick={sharePinned} className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg text-purple-700 hover:bg-purple-100"><Share2 size={13} /> Share pinned</button>
+                </div>
                 <Carousel items={pinnedTop} render={(o) => <OutputCard out={o} highlighted={o.id === highlightId} onPin={pinToggle} onRemove={removeOut} onAsk={askAbout} onMenu={openMenu} />} />
               </div>
             )}
@@ -354,13 +371,13 @@ function App() {
             <div className="border border-gray-200 rounded-xl overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="border-b border-gray-200">{COLS.map((c) => <th key={c.key} className="text-left font-medium text-gray-400 text-xs px-3 py-2.5 whitespace-nowrap">{c.label}</th>)}</tr>
+                  <tr className="border-b border-gray-200">{COLS.map((c) => { const Ic = HEAD_ICON[c.type]; return (<th key={c.key} className="text-left font-medium text-gray-600 text-xs px-3 py-2.5 whitespace-nowrap bg-gray-50"><span className="inline-flex items-center gap-1.5">{Ic && <Ic size={13} className="text-gray-400" />}{c.label}</span></th>); })}</tr>
                 </thead>
                 <tbody>
                   {filtered.map((r) => (
                     <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50">
                       {COLS.map((c) => (
-                        <td key={c.key} className="px-3 py-2.5 whitespace-nowrap text-gray-700">
+                        <td key={c.key} className={"px-3 py-2.5 whitespace-nowrap text-gray-700" + (c.type === "idx" ? " bg-gray-50" : "")}>
                           {c.type === "idx" ? <span className="text-gray-300">{r.id}</span>
                             : c.type === "file" ? <Pill><FileText size={12} /> {r.file}</Pill>
                             : c.type === "select" ? <Pill>{r[c.key]}</Pill>
@@ -467,13 +484,19 @@ function App() {
         <div className="no-print fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-50" onClick={() => setDash(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <div><h2 className="text-lg font-semibold">Dashboard — Quotes</h2><p className="text-xs text-gray-400">The same outputs, arranged. Nothing left your Data View.</p></div>
-              <button onClick={() => setDash(false)} className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500"><X size={18} /></button>
+              <div><h2 className="text-lg font-semibold">Dashboard — Quotes</h2><p className="text-xs text-gray-400">Drag cards to reorder. Nothing left your Data View.</p></div>
+              <div className="flex items-center gap-2">
+                <button onClick={shareDashboard} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50"><Share2 size={15} /> Share dashboard</button>
+                <button onClick={() => setDash(false)} className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500"><X size={18} /></button>
+              </div>
             </div>
             <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
               {outputs.map((o) => (
-                <div key={o.id} className="bg-white border border-gray-200 rounded-xl p-4">
-                  <div className="flex items-center gap-2 text-xs font-medium text-gray-500 mb-2">{o.kind === "summary" ? <FileText size={14} /> : <LayoutGrid size={14} />}{o.title}</div>
+                <div key={o.id} draggable onDragStart={() => setDragId(o.id)} onDragEnd={() => setDragId(null)} onDragOver={(e) => e.preventDefault()} onDrop={() => { reorder(dragId, o.id); setDragId(null); }} className={"bg-white border rounded-xl p-4 transition-opacity " + (dragId === o.id ? "opacity-40 border-purple-300" : "border-gray-200")}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-xs font-medium text-gray-500 min-w-0">{o.kind === "summary" ? <FileText size={14} /> : <LayoutGrid size={14} />}<span className="truncate">{o.title}</span></div>
+                    <span className="text-gray-300 cursor-grab active:cursor-grabbing" title="Drag to reorder"><GripVertical size={16} /></span>
+                  </div>
                   {o.kind === "summary" ? <div className="rounded-lg px-4 py-3 text-sm leading-relaxed" style={{ background: LIME_SOFT, color: LIME_SOFT_TEXT }}>{o.narrative}</div> : <MontoChart rows={o.rows} />}
                 </div>
               ))}
